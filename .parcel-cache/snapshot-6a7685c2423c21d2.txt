@@ -1,12 +1,13 @@
-5431
-39/workspace/test/dist/shirt.7541058d.glb1737317936770078584 0
-47/workspace/test/dist/decal-texture.b917fe37.png1737317936714077772 0
+5432
+47/workspace/test/dist/decal-texture.0bdb83dc.png1737320775223182102 0
+39/workspace/test/dist/shirt.7541058d.glb1737320775343183832 0
+47/workspace/test/dist/decal-texture.b917fe37.png1737320775227182160 0
 39/workspace/test/dist/shirt.b6637353.glb1737153763500514093 0
-31/workspace/test/dist/index.html1737317936714077772 0
+31/workspace/test/dist/index.html1737320776583201713 0
 49/workspace/test/dist/index.63aff760.js.map.4402.21737153200081453320 0
-42/workspace/test/dist/index.63aff760.js.map1737318741765737709 0
-38/workspace/test/dist/index.63aff760.js1737318741757737594 0
-20/workspace/test/dist1737318741765737709 1
+42/workspace/test/dist/index.63aff760.js.map1737321198249299149 0
+38/workspace/test/dist/index.63aff760.js1737321198245299091 0
+20/workspace/test/dist1737321198249299149 1
 54/workspace/test/node_modules/dat.gui/licenseBanner.txt1737315705133791847 0
 43/workspace/test/node_modules/dat.gui/API.md1737315705133791847 0
 49/workspace/test/node_modules/dat.gui/package.json1737315705133791847 0
@@ -1098,7 +1099,7 @@
 86/workspace/test/node_modules/@swc/helpers/_/_define_enumerable_properties/package.json1737153300906002535 0
 50/workspace/test/node_modules/htmlnano/CHANGELOG.md1737153300794001928 0
 59/workspace/test/node_modules/lmdb/bin/download-prebuilds.js1737153300870002340 0
-26/workspace/test/index.html1737315741914324822 0
+26/workspace/test/index.html1737320776499200499 0
 63/workspace/test/node_modules/three/src/nodes/functions/material1737153301090003533 1
 69/workspace/test/node_modules/@swc/helpers/cjs/_async_to_generator.cjs1737153300630001040 0
 83/workspace/test/node_modules/@swc/helpers/_/_class_static_private_field_destructure1737153300894002470 1
@@ -2352,7 +2353,7 @@
 77/workspace/test/node_modules/@parcel/packager-js/src/ScopeHoistingPackager.js1737153300678001300 0
 56/workspace/test/node_modules/@parcel/events/lib/types.js1737153300626001019 0
 60/workspace/test/node_modules/caniuse-lite/data/regions/CV.js1737153300890002449 0
-23/workspace/test/main.js1737318891439893111 0
+23/workspace/test/main.js1737321198165297933 0
 70/workspace/test/node_modules/three/src/materials/nodes/NodeMaterial.js1737153301270004507 0
 60/workspace/test/node_modules/caniuse-lite/data/regions/BY.js1737153300786001886 0
 79/workspace/test/node_modules/three/examples/fonts/helvetiker_bold.typeface.json1737153301570006132 0

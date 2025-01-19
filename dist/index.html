@@ -2,29 +2,53 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js Decal Viewer</title>
+  <title>Three.js Decal Drag-and-Drop</title>
   <style>body {
   margin: 0;
-}
-
-canvas {
-  display: block;
+  overflow: hidden;
 }
 
 #gui-container {
-  z-index: 100;
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 10px;
+  right: 10px;
+}
+
+#decal-panel {
+  background: #fffc;
+  border-radius: 8px;
+  width: 150px;
+  padding: 10px;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  box-shadow: 0 0 10px #00000080;
+}
+
+.decal-item {
+  cursor: grab;
+  border: 2px solid #0000;
+  border-radius: 4px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.decal-item:hover {
+  border-color: #333;
 }
 </style>
 </head>
 <body>
-  <!-- GUI will be rendered here -->
+  <div id="decal-panel">
+    <h3>Decal Panel</h3>
+    <img src="/decal-texture.0bdb83dc.png" alt="Decal 1" class="decal-item" draggable="true" id="decal1">
+  
+    <!-- Add more decal images as needed -->
+  </div>
+  
   <div id="gui-container"></div>
   
-  <!-- The 3D scene will be rendered here -->
+  <!-- Three.js will append the canvas here -->
   <script src="/index.63aff760.js" defer=""></script>
 </body>
 </html>

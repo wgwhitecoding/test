@@ -4,9 +4,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import * as dat from 'dat.gui';
 
-// Import assets with 'url:' prefix
+// Import assets
 import shirtGLB from 'url:./assets/shirt.glb';
-import decalTextureURL from 'url:./assets/decal-texture.png';
+// Decal images will be loaded dynamically based on drag-and-drop
 
 // Scene Setup
 const scene = new THREE.Scene();
@@ -54,16 +54,20 @@ const mouse = new THREE.Vector2();
 
 // Decal Management
 const decals = [];
-let selectedDecal = null;
 let draggedDecal = null;
-let isDragging = false;
-let wasDragging = false;
-let dragOffset = new THREE.Vector3();
+let selectedDecal = null;
+
+// Drag Offset
+const dragOffset = new THREE.Vector3();
 
 // Debounce Control
 let canCreateDecal = true;
 const clickDebounceTime = 200; // milliseconds
 const maxDecals = 20; // Adjust as needed
+
+// Drag State Flags
+let isDragging = false;
+let wasDragging = false;
 
 // dat.GUI Setup
 const gui = new dat.GUI({ autoPlace: false });
@@ -71,33 +75,30 @@ document.getElementById('gui-container').appendChild(gui.domElement);
 
 const decalFolder = gui.addFolder('Decal Properties');
 const decalProperties = {
-  color: '#ff0000', // Start with red for visibility
-  sizeX: 0.2,        // Further reduced size
+  sizeX: 0.2,        // Adjusted size
   sizeY: 0.2,
   sizeZ: 0.01
 };
 
-decalFolder.addColor(decalProperties, 'color').name('Color').onChange((value) => {
-  if (selectedDecal) {
-    selectedDecal.material.color.set(value);
-  }
-});
-decalFolder.add(decalProperties, 'sizeX', 0.05, 1).name('Size X').onChange(updateSelectedDecalSize);
-decalFolder.add(decalProperties, 'sizeY', 0.05, 1).name('Size Y').onChange(updateSelectedDecalSize);
-decalFolder.add(decalProperties, 'sizeZ', 0.005, 0.1).name('Size Z').onChange(updateSelectedDecalSize);
+decalFolder.add(decalProperties, 'sizeX', 0.05, 1).name('Size X').onChange(updateDecalSize);
+decalFolder.add(decalProperties, 'sizeY', 0.05, 1).name('Size Y').onChange(updateDecalSize);
+decalFolder.add(decalProperties, 'sizeZ', 0.005, 0.1).name('Size Z').onChange(updateDecalSize);
 decalFolder.open();
 
+// GUI Actions
 const actions = {
   clearDecals: () => {
     decals.forEach(decal => scene.remove(decal));
     decals.length = 0;
-    console.log('All decals cleared.');
+    console.log('All decals cleared. Current decals array:', decals);
   },
   undoDecal: () => {
     if (decals.length > 0) {
       const lastDecal = decals.pop();
       scene.remove(lastDecal);
-      console.log('Last decal removed.');
+      console.log('Last decal removed. Current decals array:', decals);
+    } else {
+      console.log('No decals to undo.');
     }
   }
 };
@@ -105,7 +106,7 @@ const actions = {
 gui.add(actions, 'clearDecals').name('Clear All Decals');
 gui.add(actions, 'undoDecal').name('Undo Last Decal');
 
-// GLTF Loader
+// Load Shirt Model
 const loader = new GLTFLoader();
 let shirt;
 
@@ -115,13 +116,12 @@ loader.load(
     shirt = gltf.scene;
     console.log('Shirt model loaded:', shirt);
 
-    // Traverse the model to find all meshes
+    // Enable shadows on all meshes
     shirt.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
         console.log('Mesh found:', child.name);
-        console.log('Geometry attributes:', child.geometry.attributes);
       }
     });
 
@@ -131,15 +131,6 @@ loader.load(
     const bbox = new THREE.Box3().setFromObject(shirt);
     const bboxHelper = new THREE.Box3Helper(bbox, 0xff0000);
     scene.add(bboxHelper);
-
-    // Optional: Add a test decal after ensuring the shirt is loaded
-    const testPosition = bbox.getCenter(new THREE.Vector3()).clone();
-    const testNormal = new THREE.Vector3(0, 1, 0); // Example normal; adjust based on your model
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), testNormal);
-    const orientation = new THREE.Euler().setFromQuaternion(quaternion);
-    const testSize = new THREE.Vector3(decalProperties.sizeX, decalProperties.sizeY, decalProperties.sizeZ);
-    const testDecal = createDecal(testPosition, orientation, testSize);
-    if (testDecal) decals.push(testDecal);
 
     // Load saved decals if any
     loadDecals();
@@ -153,7 +144,7 @@ loader.load(
 );
 
 // Function to Create a Decal
-function createDecal(position, orientation, size) {
+function createDecal(position, orientation, size, decalSrc) {
   if (!shirt) {
     console.error('Shirt model is not loaded.');
     return null;
@@ -177,12 +168,17 @@ function createDecal(position, orientation, size) {
     return null;
   }
 
+  // Load the decal texture based on the dragged image
+  const decalTexture = new THREE.TextureLoader().load(decalSrc, () => {
+    console.log('Decal texture loaded:', decalSrc);
+  }, undefined, (error) => {
+    console.error('Error loading decal texture:', error);
+  });
+
   // Create decal material
   const decalMaterial = new THREE.MeshPhongMaterial({
-    color: decalProperties.color,
-    map: new THREE.TextureLoader().load(decalTextureURL),
-    transparent: false,       // Disable if not using transparent textures
-    opacity: 1.0,             // Full opacity
+    map: decalTexture,
+    transparent: true,        // Enable transparency if decal has transparent parts
     depthTest: false,         // Prevent decal from being hidden behind the mesh
     depthWrite: false,
     polygonOffset: true,
@@ -190,7 +186,7 @@ function createDecal(position, orientation, size) {
     shininess: 10,
     specular: 0x111111,
     side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending // Change blending mode for better visibility
+    blending: THREE.NormalBlending // Adjust blending mode as needed
   });
 
   try {
@@ -206,10 +202,8 @@ function createDecal(position, orientation, size) {
     decal.userData.isDecal = true;
     scene.add(decal);
 
+    decals.push(decal);
     console.log('Decal created at position:', position);
-    console.log('Decal orientation:', orientation);
-    console.log('Decal size:', size);
-
     return decal;
   } catch (error) {
     console.error('Error creating DecalGeometry:', error);
@@ -218,7 +212,7 @@ function createDecal(position, orientation, size) {
 }
 
 // Function to Update Decal Size
-function updateSelectedDecalSize() {
+function updateDecalSize() {
   if (selectedDecal) {
     const newSize = new THREE.Vector3(decalProperties.sizeX, decalProperties.sizeY, decalProperties.sizeZ);
     const position = selectedDecal.position.clone();
@@ -230,92 +224,203 @@ function updateSelectedDecalSize() {
     if (index > -1) decals.splice(index, 1);
 
     // Recreate decal with new size
-    selectedDecal = createDecal(position, orientation, newSize);
+    selectedDecal = createDecal(position, orientation, newSize, selectedDecal.material.map.image.src);
     if (selectedDecal) {
-      decals.push(selectedDecal);
+      console.log('Decal size updated. New decals array:', decals);
     }
   }
 }
 
-// Mouse Event Handlers
-window.addEventListener('mousedown', onMouseDownHandler, false);
-window.addEventListener('mousemove', onMouseMoveHandler, false);
-window.addEventListener('mouseup', onMouseUpHandler, false);
-window.addEventListener('click', onClickHandler, false);
-window.addEventListener('mousemove', onMouseHoverHandler, false); // For cursor change
+// Event Listeners for Drag-and-Drop from Decal Panel
+const decalPanel = document.getElementById('decal-panel');
+const decalItems = document.querySelectorAll('.decal-item');
+
+// Variable to store the current decal being dragged from the panel
+let currentDecalImage = null;
+
+// Handle Drag Start
+decalItems.forEach(item => {
+  item.addEventListener('dragstart', (event) => {
+    currentDecalImage = event.target;
+    event.target.classList.add('dragging');
+    console.log('Decal dragged:', currentDecalImage.id);
+  });
+});
+
+// Handle Drag End
+decalItems.forEach(item => {
+  item.addEventListener('dragend', (event) => {
+    event.target.classList.remove('dragging');
+    currentDecalImage = null;
+  });
+});
+
+// Make the Three.js canvas a drop zone for decal placement
+renderer.domElement.addEventListener('dragover', (event) => {
+  event.preventDefault(); // Necessary to allow a drop
+});
+
+renderer.domElement.addEventListener('drop', (event) => {
+  event.preventDefault();
+
+  if (currentDecalImage) {
+    if (decals.length >= maxDecals) {
+      alert(`Maximum of ${maxDecals} decals reached.`);
+      return;
+    }
+
+    // Get the mouse position relative to the canvas
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    // Convert mouse position to normalized device coordinates (-1 to +1)
+    mouse.x = (mouseX / renderer.domElement.clientWidth) * 2 - 1;
+    mouse.y = - (mouseY / renderer.domElement.clientHeight) * 2 + 1;
+
+    // Update the raycaster
+    raycaster.setFromCamera(mouse, camera);
+
+    // Calculate intersects with the shirt mesh
+    const intersects = raycaster.intersectObject(shirt, true);
+
+    if (intersects.length > 0) {
+      const intersect = intersects[0];
+      if (!intersect.object.userData.isDecal && intersect.face) { // Ensure it's not a decal and has a face
+        const position = intersect.point.clone(); // Intersection point
+        const normal = intersect.face.normal.clone(); // Surface normal
+
+        if (!normal) {
+          console.error('Intersected face has no normal.');
+          return;
+        }
+
+        // Transform normal to world space
+        const worldNormal = normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(intersect.object.matrixWorld)).normalize();
+
+        // Calculate orientation quaternion to align decal with the normal
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), worldNormal);
+        const orientation = new THREE.Euler().setFromQuaternion(quaternion);
+
+        // Define decal size (adjust as needed)
+        const size = new THREE.Vector3(decalProperties.sizeX, decalProperties.sizeY, decalProperties.sizeZ);
+
+        // Define an offset distance to place the decal slightly above the mesh
+        const offsetDistance = 0.005; // Fine-tuned for better alignment
+
+        // Offset the position along the normal
+        const decalPosition = position.clone().add(worldNormal.clone().multiplyScalar(offsetDistance));
+
+        // Create the decal at the offset position using the dragged decal's image source
+        const newDecal = createDecal(decalPosition, orientation, size, currentDecalImage.src);
+        if (newDecal) {
+          console.log('Decal placed via drag-and-drop at:', decalPosition);
+        }
+      } else {
+        console.warn('Dropped on a decal or no valid face normal found.');
+      }
+    }
+
+    // Reset the current decal image
+    currentDecalImage = null;
+  }
+});
+
+// Event Listeners for Selecting and Moving Existing Decals
+renderer.domElement.addEventListener('mousedown', onCanvasMouseDown, false);
+renderer.domElement.addEventListener('mousemove', onCanvasMouseMove, false);
+renderer.domElement.addEventListener('mouseup', onCanvasMouseUp, false);
 
 // Variables to Track Mouse Movement for Drag vs. Click
-let mouseDownPos = new THREE.Vector2();
-const dragThreshold = 5; // Pixels
+let canvasMouseDownPos = new THREE.Vector2();
+const canvasDragThreshold = 5; // Pixels
 
-// Handle Mouse Down
-function onMouseDownHandler(event) {
-  // Record the initial mouse position
-  mouseDownPos.set(event.clientX, event.clientY);
+// Handle Mouse Down on Canvas for Decal Selection
+function onCanvasMouseDown(event) {
+  event.preventDefault();
+  canvasMouseDownPos.set(event.clientX, event.clientY);
 
-  // Set up the raycaster
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  // Get mouse position relative to canvas
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+
+  // Convert mouse position to normalized device coordinates (-1 to +1)
+  mouse.x = (mouseX / renderer.domElement.clientWidth) * 2 - 1;
+  mouse.y = - (mouseY / renderer.domElement.clientHeight) * 2 + 1;
+
+  // Update the raycaster
   raycaster.setFromCamera(mouse, camera);
 
-  // Check if a decal is clicked
+  // Check for intersection with existing decals
   const intersects = raycaster.intersectObjects(decals, true);
 
   if (intersects.length > 0) {
-    draggedDecal = intersects[0].object;
+    selectedDecal = intersects[0].object;
     isDragging = true;
+    wasDragging = false;
 
     // Highlight the selected decal
-    draggedDecal.material.emissive.setHex(0x444444);
+    selectedDecal.material.emissive.setHex(0x444444);
+    console.log('Decal selected for moving:', selectedDecal);
 
-    // Disable OrbitControls to prevent camera movement
+    // Disable OrbitControls to prevent camera movement during dragging
     controls.enabled = false;
 
     // Change cursor to grabbing
     document.body.style.cursor = 'grabbing';
 
     // Calculate drag offset
-    dragOffset.copy(draggedDecal.position).sub(intersects[0].point);
+    dragOffset.copy(selectedDecal.position).sub(intersects[0].point);
+    console.log('Drag offset calculated:', dragOffset);
   }
 }
 
-// Handle Mouse Move
-function onMouseMoveHandler(event) {
-  if (isDragging && draggedDecal) {
+// Handle Mouse Move on Canvas for Decal Movement
+function onCanvasMouseMove(event) {
+  if (isDragging && selectedDecal) {
     // Calculate distance moved
-    const deltaX = event.clientX - mouseDownPos.x;
-    const deltaY = event.clientY - mouseDownPos.y;
+    const deltaX = event.clientX - canvasMouseDownPos.x;
+    const deltaY = event.clientY - canvasMouseDownPos.y;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    if (distance > dragThreshold) {
+    if (distance > canvasDragThreshold) {
       wasDragging = true; // Movement exceeds threshold, consider it a drag
 
+      // Get mouse position relative to canvas
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      // Convert mouse position to normalized device coordinates (-1 to +1)
+      mouse.x = (mouseX / renderer.domElement.clientWidth) * 2 - 1;
+      mouse.y = - (mouseY / renderer.domElement.clientHeight) * 2 + 1;
+
       // Update the raycaster
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
       // Define a plane based on the decal's current orientation
       const decalNormal = new THREE.Vector3();
-      draggedDecal.getWorldDirection(decalNormal);
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(decalNormal, draggedDecal.position);
+      selectedDecal.getWorldDirection(decalNormal);
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(decalNormal, selectedDecal.position);
 
       const intersection = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, intersection);
 
       if (intersection) {
-        const newPosition = intersection.add(dragOffset);
+        // Calculate the new position using dragOffset
+        const newPosition = intersection.clone().add(dragOffset);
 
         // Get shirt's bounding box
         const bbox = new THREE.Box3().setFromObject(shirt);
 
         if (bbox.containsPoint(newPosition)) {
-          draggedDecal.position.copy(newPosition);
+          selectedDecal.position.copy(newPosition);
           // Maintain orientation
-          draggedDecal.rotation.copy(new THREE.Euler().setFromQuaternion(
+          selectedDecal.rotation.copy(new THREE.Euler().setFromQuaternion(
             new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), decalNormal)
           ));
-          console.log('Decal moved to:', draggedDecal.position);
+          console.log('Decal moved to:', selectedDecal.position);
         } else {
           console.warn('Decal movement out of bounds.');
         }
@@ -324,11 +429,12 @@ function onMouseMoveHandler(event) {
   }
 }
 
-// Handle Mouse Up
-function onMouseUpHandler(event) {
-  if (isDragging && draggedDecal) {
+// Handle Mouse Up on Canvas to Finalize Decal Movement
+function onCanvasMouseUp(event) {
+  if (isDragging && selectedDecal) {
     // Remove highlight from decal
-    draggedDecal.material.emissive.setHex(0x000000);
+    selectedDecal.material.emissive.setHex(0x000000);
+    console.log('Decal deselected after moving:', selectedDecal);
   }
 
   if (isDragging && wasDragging) {
@@ -336,11 +442,12 @@ function onMouseUpHandler(event) {
     wasDragging = false;
     event.preventDefault();
     event.stopPropagation();
+    console.log('Decal movement completed.');
   }
 
   // Reset dragging state
   isDragging = false;
-  draggedDecal = null;
+  selectedDecal = null;
 
   // Re-enable OrbitControls
   controls.enabled = true;
@@ -349,81 +456,46 @@ function onMouseUpHandler(event) {
   document.body.style.cursor = 'default';
 }
 
-// Handle Click
-function onClickHandler(event) {
-  if (!canCreateDecal || wasDragging || decals.length >= maxDecals) return;
+// Handle Cursor Change on Hover Over Decals
+renderer.domElement.addEventListener('mousemove', onCanvasMouseHover, false);
 
-  // Calculate mouse position in normalized device coordinates (-1 to +1)
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+function onCanvasMouseHover(event) {
+  if (isDragging) return; // Do not change cursor while dragging
+
+  // Get mouse position relative to canvas
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+
+  // Convert mouse position to normalized device coordinates (-1 to +1)
+  mouse.x = (mouseX / renderer.domElement.clientWidth) * 2 - 1;
+  mouse.y = - (mouseY / renderer.domElement.clientHeight) * 2 + 1;
 
   // Update the raycaster
   raycaster.setFromCamera(mouse, camera);
 
-  // Calculate intersects with the shirt mesh
-  const intersects = raycaster.intersectObject(shirt, true);
-
-  if (intersects.length > 0) {
-    const intersect = intersects[0];
-    if (!intersect.object.userData.isDecal && intersect.face) { // Ensure it's not a decal and has a face
-
-      const position = intersect.point.clone(); // Intersection point
-      const normal = intersect.face.normal.clone(); // Surface normal
-
-      if (!normal) {
-        console.error('Intersected face has no normal.');
-        return;
-      }
-
-      // Transform normal to world space
-      const worldNormal = normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(intersect.object.matrixWorld)).normalize();
-
-      // Calculate orientation quaternion to align decal with the normal
-      const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), worldNormal);
-      const orientation = new THREE.Euler().setFromQuaternion(quaternion);
-
-      // Define decal size (adjusted)
-      const size = new THREE.Vector3(decalProperties.sizeX, decalProperties.sizeY, decalProperties.sizeZ);
-
-      // Define an offset distance to place the decal outside the mesh
-      const offsetDistance = 0.02; // Adjust as needed
-
-      // Offset the position along the normal
-      const decalPosition = position.clone().add(worldNormal.clone().multiplyScalar(offsetDistance));
-
-      // Create the decal at the offset position
-      const newDecal = createDecal(decalPosition, orientation, size);
-      if (newDecal) {
-        decals.push(newDecal);
-        console.log('Decal placed at:', decalPosition);
-      }
-    } else {
-      console.warn('Clicked on a decal or no valid face normal found.');
-    }
-  }
-
-  // Debounce to prevent multiple decals from rapid clicks
-  canCreateDecal = false;
-  setTimeout(() => {
-    canCreateDecal = true;
-  }, clickDebounceTime);
-}
-
-// Handle Cursor Change on Hover
-function onMouseHoverHandler(event) {
-  if (isDragging) return; // Do not change cursor while dragging
-
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-
+  // Check for intersection with existing decals
   const intersects = raycaster.intersectObjects(decals, true);
 
   if (intersects.length > 0) {
     document.body.style.cursor = 'grab';
+    // Optional: Highlight decal on hover
+    if (!isDragging && intersects[0].object !== selectedDecal) {
+      // Reset emissive color for all decals except the selected one
+      decals.forEach(decal => {
+        if (decal !== intersects[0].object) {
+          decal.material.emissive.setHex(0x000000);
+        }
+      });
+      // Highlight hovered decal
+      intersects[0].object.material.emissive.setHex(0x333333);
+    }
   } else {
     document.body.style.cursor = 'default';
+    // Reset emissive color for all decals
+    decals.forEach(decal => {
+      decal.material.emissive.setHex(0x000000);
+    });
   }
 }
 
@@ -443,6 +515,7 @@ window.addEventListener(
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    console.log('Window resized. Renderer and camera updated.');
   },
   false
 );
@@ -453,10 +526,10 @@ function saveDecals() {
     position: decal.position.toArray(),
     rotation: [decal.rotation.x, decal.rotation.y, decal.rotation.z],
     scale: [decal.scale.x, decal.scale.y, decal.scale.z],
-    color: decal.material.color.getHex()
+    textureSrc: decal.material.map.image.src
   }));
   localStorage.setItem('decals', JSON.stringify(decalData));
-  console.log('Decals saved.');
+  console.log('Decals saved to localStorage.');
 }
 
 // Function to Load Decals
@@ -467,16 +540,16 @@ function loadDecals() {
       const position = new THREE.Vector3().fromArray(data.position);
       const orientation = new THREE.Euler(...data.rotation);
       const size = new THREE.Vector3(...data.scale);
-      const newDecal = createDecal(position, orientation, size);
+      const newDecal = createDecal(position, orientation, size, data.textureSrc);
       if (newDecal) {
-        newDecal.material.color.setHex(data.color);
-        decals.push(newDecal);
+        console.log('Decal loaded from localStorage:', newDecal);
       }
     });
-    console.log('Decals loaded.');
+    console.log('All decals loaded from localStorage. Current decals array:', decals);
+  } else {
+    console.log('No decals found in localStorage.');
   }
 }
 
 // Save decals on window unload
 window.addEventListener('beforeunload', saveDecals);
-
